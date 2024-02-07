@@ -25,8 +25,8 @@
 PyDoc_STRVAR(iothpy_doc,
 "_iothpy c module\n\
 \n\
-This module defines the base classes MSocketBase and StackBase\n\
-used to interface with the ioth c api. \n\
+This module defines the base classes MSocketBase, StackBase and DNSBase\n\
+used to interface with the ioth c api, iothconf api and iothdns api. \n\
 It also defines the functions needed to offer the same interface as\n\
 the built-in socket module\n\
 ");
@@ -196,6 +196,7 @@ PyInit__iothpy(void)
 { 
     Py_SET_TYPE(&stack_type, &PyType_Type);
     Py_SET_TYPE(&socket_type, &PyType_Type);
+    Py_SET_TYPE(&dns_type, &PyType_Type);
 
     PyObject* module = PyModule_Create(&iothpy_module);
 
@@ -216,6 +217,11 @@ PyInit__iothpy(void)
     Py_INCREF((PyObject *)&socket_type);
     if (PyModule_AddObject(module, "MSocketBase",
                            (PyObject *)&socket_type) != 0)
+        return NULL;
+
+    /* Add a symbol for the dns type */
+    Py_INCREF((PyObject *) &dns_type);
+    if (PyModule_AddObject(module, "DNSBase", (PyObject *) &dns_type != 0))
         return NULL;
 
     return module;
