@@ -804,6 +804,7 @@ stack_ioth_resolvconf(stack_object *self, PyObject *args)
             PyErr_Clear();
             Py_RETURN_NONE;
         }
+        
     }
     return Py_BuildValue("s", resolvConf);
 }
@@ -832,7 +833,6 @@ static PyMethodDef stack_methods[] = {
     /* Iothconf */
     {"ioth_config", (PyCFunction)stack_ioth_config, METH_VARARGS, ioth_config_doc},
     {"ioth_resolvconf", (PyCFunction)stack_ioth_resolvconf, METH_VARARGS, ioth_resolvconf_doc},
-
     {NULL, NULL} /* sentinel */
 };
 

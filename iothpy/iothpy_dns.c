@@ -1,9 +1,22 @@
 #include "iothpy_dns.h"
+#include "iothpy_stack.h"
+#include "iothpy_socket.h"
 
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #endif
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
+#include <stdint.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <netinet/in.h>
+#include <pthread.h>
+#include <arpa/inet.h>
 #include <errno.h>
 
 #define IS_PATH(str) (strchr(str, '/') != NULL)
@@ -44,22 +57,18 @@ dns__init__(PyObject* self, PyObject* args, PyObject* kwds){
     PyObject* stackBase = NULL;
     struct ioth* stack = NULL;
 
-    //TODO: cambiare O con O!
-    if(!PyArg_ParseTuple(args,"Oz", stackBase, &config))
+    if(!PyArg_ParseTuple(args,"Oz", &stackBase, &config))
         return -1;
-    
-    if(stackBase == NULL){
-        PyErr_SetString(PyExc_RuntimeError, "invalid stack");
-        return -1;
-    }
 
-    stack = (struct ioth*) PyObject_GetAddrString(stackBase, "stack");
+
+    if(stackBase != Py_None)
+        stack = ((stack_object*) stackBase)->stack;
 
     if(config != NULL && !IS_PATH(config)){
         s->dns = iothdns_init_strcfg(stack, config);
     } else {
         /* config NULL or config is Path. iothdns_init handled both. */
-        s->dns = iothds_init(stack,config);
+        s->dns = iothdns_init(stack,config);
     }
 
     if(s->dns == NULL){
@@ -71,22 +80,32 @@ dns__init__(PyObject* self, PyObject* args, PyObject* kwds){
 }
 
 static void
-dns__del__() dns_object* self{
-    //TODO
+dns__del__( dns_object* self ){
+    
+    /* save exception, if any */
+    PyObject* exc = PyErr_GetRaisedException();
+
+    /* delete iothdns */
+    if(self->dns != NULL){
+        iothdns_fini(self->dns);
+        self->dns = NULL;
+    }
+
+    /* restore exception */
+    if(exc)
+        PyErr_SetRaisedException(exc);
 }
 
 
 static PyMethodDef dns_methods[] = {
-    //TODO
-}
+    {NULL,NULL} /* sentinel */
+};
 
-PyDoc_STRVAR(dns_doc,
-"DNSBase\n\
-This class is used internally as a base type for the DNS class"
-)
+PyDoc_STRVAR(dns_doc,"DNSBase\n\
+This class is used internally as a base type for the DNS class");
 
 
-PyTypeObject stack_type = {
+PyTypeObject dns_type = {
   PyVarObject_HEAD_INIT(0, 0)                 /* Must fill in type value later */
     "_iothpy.DNSBase",                             /* tp_name */
     sizeof(dns_object),                         /* tp_basicsize */

@@ -3,6 +3,7 @@
 
 #include <ioth.h>
 #include <iothconf.h>
+#include <iothdns.h>
 
 typedef struct stack_object {
     PyObject_HEAD

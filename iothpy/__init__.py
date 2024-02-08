@@ -66,3 +66,5 @@ from socket import (
     sethostname,
 )
 
+# Import the DNS type
+from iothpy.dns import DNS

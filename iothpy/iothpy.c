@@ -7,6 +7,7 @@
 
 #include "iothpy_stack.h"
 #include "iothpy_socket.h"
+#include "iothpy_dns.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -221,7 +222,7 @@ PyInit__iothpy(void)
 
     /* Add a symbol for the dns type */
     Py_INCREF((PyObject *) &dns_type);
-    if (PyModule_AddObject(module, "DNSBase", (PyObject *) &dns_type != 0))
+    if (PyModule_AddObject(module, "DNSBase", (PyObject *) &dns_type) != 0)
         return NULL;
 
     return module;

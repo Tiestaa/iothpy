@@ -2559,10 +2559,10 @@ socket_finalize(socket_object* s)
  
 /* sock_object members */
 static PyMemberDef socket_memberlist[] = {
-       {"family", T_INT, offsetof(socket_object, family), READONLY, "the socket family"},
-       {"type", T_INT, offsetof(socket_object, type), READONLY, "the socket type"},
-       {"proto", T_INT, offsetof(socket_object, proto), READONLY, "the socket protocol"},
-       {"stack", T_OBJECT_EX, offsetof(socket_object, stack), READONLY, "the stack of the socket"},
+       {"family", Py_T_INT, offsetof(socket_object, family), Py_READONLY, "the socket family"},
+       {"type", Py_T_INT, offsetof(socket_object, type), Py_READONLY, "the socket type"},
+       {"proto", Py_T_INT, offsetof(socket_object, proto), Py_READONLY, "the socket protocol"},
+       {"stack", Py_T_OBJECT_EX, offsetof(socket_object, stack), Py_READONLY, "the stack of the socket"},
        {0},
 };
 
