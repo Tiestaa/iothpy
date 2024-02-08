@@ -66,5 +66,5 @@ from socket import (
     sethostname,
 )
 
-# Import the DNS type
-from iothpy.dns import DNS
+# Import the DNS type and pathtag enum
+from iothpy.dns import DNS, IOTHDNS_HOSTS, IOTHDNS_SERVICES

@@ -10,4 +10,5 @@ stack.ioth_config("eth,ip=10.0.0.53/24,gw=10.0.0.1")
 
 dnsSC = iothpy.DNS(stack, "nameserver 1.1.1.1")
 
-print(dnsSC.__class__)
+dnsSC.setpath(iothpy.IOTHDNS_HOSTS, "/home/pippo")
+print(dnsSC.getpath(iothpy.IOTHDNS_HOSTS))

@@ -18,6 +18,7 @@
 #include <pthread.h>
 #include <arpa/inet.h>
 #include <errno.h>
+#include <linux/limits.h>
 
 #define IS_PATH(str) (strchr(str, '/') != NULL)
 
@@ -96,8 +97,118 @@ dns__del__( dns_object* self ){
         PyErr_SetRaisedException(exc);
 }
 
+PyDoc_STRVAR(iothdns_update_doc, "iothdns_update(path_config)\n\
+Update DNS configuration using a file (resolv.conf syntax)");
+
+static PyObject* dns_iothdns_update(dns_object* self, PyObject* args){
+    
+    char* path = NULL;
+    
+    if(self->dns == NULL){
+        PyErr_SetString(PyExc_Exception, "Uninitialized dns");
+        return NULL;
+    }
+
+    if(!PyArg_ParseTuple(args, "s", &path))
+        return NULL;
+    
+    if(iothdns_update(self->dns,path) < 0){
+        PyErr_SetFromErrno(PyExc_SyntaxError);
+        return NULL;
+    }
+
+    Py_RETURN_NONE;
+}
+
+PyDoc_STRVAR(iothdns_update_strcfg_doc, "iothdns_update_strcfg(config)\n\
+Update DNS configuration using a string");
+
+static PyObject* dns_iothdns_update_strcfg(dns_object* self, PyObject* args){
+    
+    char* config = NULL;
+    
+    if(self->dns == NULL){
+        PyErr_SetString(PyExc_Exception, "Uninitialized dns");
+        return NULL;
+    }
+
+    if(!PyArg_ParseTuple(args, "s", &config))
+        return NULL;
+    
+    if(iothdns_update_strcfg(self->dns, config) < 0){
+        PyErr_SetFromErrno(PyExc_SyntaxError);
+        return NULL;
+    }
+
+    Py_RETURN_NONE;
+}
+
+PyDoc_STRVAR(iothdns_setpath_doc,"iothdns_setpath(pathtag, value)\n\
+C library uses system provided files like /etc/hosts and /etc/services. \n\
+Use this method to redefine files instead of using system provided ones");
+
+static PyObject* dns_iothdns_setpath(dns_object* self, PyObject* args){
+    int pathtag = -1;
+    char* newValue = NULL;
+
+    if(self->dns == NULL){
+        PyErr_SetString(PyExc_Exception, "Uninitialized dns");
+        return NULL;
+    }
+
+    if(!PyArg_ParseTuple(args, "iz", &pathtag, &newValue))
+        return NULL;
+
+    if(pathtag != IOTHDNS_HOSTS && pathtag != IOTHDNS_SERVICES){
+        PyErr_SetString(PyExc_SyntaxError, "invalid pathtag value");
+        return NULL;
+    }
+
+    iothdns_setpath(self->dns, pathtag, newValue);
+
+    Py_RETURN_NONE;
+}
+
+PyDoc_STRVAR(iothdns_getpath_doc,"iothdns_getpath(pathtag)\n\
+C library uses system provided files like /etc/hosts and /etc/services. \n\
+Use this method to get current file path");
+
+static PyObject* dns_iothdns_getpath(dns_object* self, PyObject* args){
+    
+    int pathtag = -1;
+    char buf[PATH_MAX];
+    
+
+    if(self->dns == NULL){
+        PyErr_SetString(PyExc_Exception, "Uninitialized dns");
+        return NULL;
+    }
+
+    if(!PyArg_ParseTuple(args, "i", &pathtag))
+        return NULL;
+
+    if(pathtag != IOTHDNS_HOSTS && pathtag != IOTHDNS_SERVICES){
+        PyErr_SetString(PyExc_SyntaxError, "invalid pathtag value");
+        return NULL;
+    }
+
+    if (iothdns_getpath(self->dns, pathtag, buf, PATH_MAX - 1) < 0){
+        PyErr_SetFromErrno(PyExc_SyntaxError);
+        return NULL;
+    }
+
+    return Py_BuildValue("s", &buf);
+}
+
+
 
 static PyMethodDef dns_methods[] = {
+    /* configuration */
+    {"update", (PyCFunction)dns_iothdns_update, METH_VARARGS, iothdns_update_doc},
+    {"update_strcfg", (PyCFunction)dns_iothdns_update_strcfg, METH_VARARGS, iothdns_update_strcfg_doc},
+    {"setpath", (PyCFunction) dns_iothdns_setpath, METH_VARARGS, iothdns_setpath_doc},
+    {"getpath", (PyCFunction) dns_iothdns_getpath, METH_VARARGS, iothdns_getpath_doc},
+
     {NULL,NULL} /* sentinel */
 };
 
