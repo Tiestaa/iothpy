@@ -5,6 +5,9 @@ This module defines the DNS class used to create the ioth dns.
 
 All methods of this class are:
 ... TODO
+
+You can use const importing the module socket. (socket.AF_INET, socket.AF_INET6, etc...)
+
 """
 # C-like struct definition
     
@@ -30,7 +33,7 @@ class sockaddr(object):
                 raise TypeError("{} must be of type {}".format(name,check_type.__name__))
             else:
                 super().__setattr__(name,value)
-                
+
     @property
     def __dict__(self):
         return {

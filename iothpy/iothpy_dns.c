@@ -22,6 +22,7 @@
 
 #define IS_PATH(str) (strchr(str, '/') != NULL)
 #define CHECK_BIT(var,pos) ((var) & (1<<(pos)))
+#define MIN(a,b) ((a) < (b) ? (a) : (b))
 
 static void 
 dns_dealloc(dns_object* self){
@@ -333,6 +334,11 @@ static PyObject* dns_getnameinfo(dns_object* self, PyObject* args){
     memset(host, 0, sizeof(host));
     memset(serv, 0, sizeof(serv));
 
+    if(self->dns == NULL){
+        PyErr_SetString(PyExc_Exception, "Uninitialized dns");
+        return NULL;
+    }
+
     if(!PyArg_ParseTuple(args, "Ozzi", &sa, &host, &serv, &flags))
         return NULL;
     
@@ -360,6 +366,154 @@ static PyObject* dns_getnameinfo(dns_object* self, PyObject* args){
     return PyTuple_Pack(3, Py_BuildValue("i", rescode), Py_BuildValue("z", host), Py_BuildValue("z", serv));
 }
 
+PyDoc_STRVAR(dns_lookup_a_doc,"lookup_a(name, n) \n\
+It returns a list of the heading n addresses defined for the queried name.\n\
+Address is a dict {s_addr: ..., IP_string: ...} where s_addr is the element of in_addr struct,\n\
+IP is the s_addr converted to a string dots-and-number using inet_ntoa(3).\n\
+In case name is valid but no IP address is defined, it returns None.\n\
+It returns error in case of invalid name.");
+
+static PyObject* dns_lookup_a(dns_object* self, PyObject* args){
+    char* name = NULL;
+    int n = 0;
+    int res;
+    char addr_str[INET_ADDRSTRLEN];
+
+    if(self->dns == NULL){
+        PyErr_SetString(PyExc_Exception, "Uninitialized dns");
+        return NULL;
+    }
+
+    if(!PyArg_ParseTuple(args, "si", &name, &n))
+        return NULL;
+    
+    struct in_addr in_addrs[n];
+
+    if((res = iothdns_lookup_a(self->dns, name, in_addrs, n)) < 0){
+        PyErr_SetString(PyExc_OSError, "non-existent name");
+        return NULL;
+    }
+
+    /* Valid name, no IP address defined */
+    if(res == 0)
+        Py_RETURN_NONE;
+
+    PyObject* listAddr = PyList_New((Py_ssize_t) (MIN(res, n)));
+
+    for(int i = 0; i < MIN(res, n); i++){
+        PyObject* addr = Py_BuildValue("{s:I,s:s}", "s_addr", in_addrs[i].s_addr,"IP_string", inet_ntop(AF_INET, &in_addrs[i].s_addr, addr_str, INET_ADDRSTRLEN));
+        PyList_SET_ITEM(listAddr, i, Py_BuildValue("O", addr));
+        if(PyErr_Occurred()){
+            Py_DECREF(listAddr);
+            return NULL;
+        }
+    }
+
+    return PyList_Size(listAddr) == 1 ? PyList_GetItem(listAddr, 0) : listAddr;
+}
+
+
+PyDoc_STRVAR(dns_lookup_aaaa_doc,"lookup_aaaa(name, n) \n\
+It returns a list of the heading n addresses defined for the queried name.\n\
+Address is a dict {s_addr: ..., IP_string: ...} where s_addr is a list of int of s6_addr,\n\
+IP is the s_addr converted to a string using inet_ntop(3).\n\
+In case name is valid but no IP address is defined, it returns None.\n\
+It returns error in case of invalid name.");
+
+static PyObject* dns_lookup_aaaa(dns_object* self, PyObject* args){
+    char* name = NULL;
+    int n = 0;
+    int res;
+    char addr6_str[INET6_ADDRSTRLEN];
+
+    if(self->dns == NULL){
+        PyErr_SetString(PyExc_Exception, "Uninitialized dns");
+        return NULL;
+    }
+
+    if(!PyArg_ParseTuple(args, "si", &name, &n))
+        return NULL;
+    
+    struct in6_addr in6_addrs[n];
+
+    if((res = iothdns_lookup_aaaa(self->dns, name, in6_addrs, n)) < 0){
+        PyErr_SetString(PyExc_OSError, "non-existent name");
+        return NULL;
+    }
+
+    /* Valid name, no IP address defined */
+    if(res == 0)
+        Py_RETURN_NONE;
+
+    PyObject* listAddr = PyList_New((Py_ssize_t) (MIN(res, n)));
+
+    for(int i = 0; i < MIN(res, n); i++){
+        PyObject* addr6 = PyList_New(16);
+        for(int j = 0; j < 16; j++){
+            PyList_SET_ITEM(addr6, j, Py_BuildValue("B", in6_addrs[i].s6_addr[j]));
+        }
+
+        PyObject* addr = Py_BuildValue("{s:O, s:s}", "s6_addr", addr6, "IP6_string", inet_ntop(AF_INET6, &in6_addrs[i].s6_addr, addr6_str, INET6_ADDRSTRLEN));
+        PyList_SET_ITEM(listAddr, i, Py_BuildValue("O", addr));
+        if(PyErr_Occurred()){
+            Py_DECREF(listAddr);
+            return NULL;
+        }
+    }
+
+    return PyList_Size(listAddr) == 1 ? PyList_GetItem(listAddr, 0) : listAddr;
+}
+
+PyDoc_STRVAR(dns_lookup_aaaa_compat_doc,"lookup_aaaa_compat(name, n) \n\
+It returns a list of the heading n addresses defined for the queried name.\n\
+Address is a dict {IPv6: ..., IP_compat: ...} where IP_compat contain the compat mode\n\
+(e.g. ::ffff:1.2.3.4). This value is present only if n > 1.\n\
+In case name is valid but no IP address is defined, it returns None.\n\
+It returns error in case of invalid name.");
+
+static PyObject* dns_lookup_aaaa_compat(dns_object* self, PyObject* args){
+    char* name = NULL;
+    int n = 0;
+    int res;
+    char addr6_str[INET6_ADDRSTRLEN];
+    char addr6_compat_str[INET6_ADDRSTRLEN];
+
+    if(self->dns == NULL){
+        PyErr_SetString(PyExc_Exception, "Uninitialized dns");
+        return NULL;
+    }
+
+    if(!PyArg_ParseTuple(args, "si", &name, &n))
+        return NULL;
+    
+    struct in6_addr in6_addrs[n];
+
+    if((res = iothdns_lookup_aaaa_compat(self->dns, name, in6_addrs, n)) < 0){
+        PyErr_SetString(PyExc_OSError, "non-existent name");
+        return NULL;
+    }
+
+    /* Valid name, no IP address defined */
+    if(res == 0)
+        Py_RETURN_NONE;
+
+    PyObject* listAddr = PyList_New(0);
+    PyObject* addr = NULL;
+    for(int i = 0; i < MIN(res, n); i++){
+        char* ipv6addr = inet_ntop(AF_INET6, &in6_addrs[i].s6_addr, addr6_str, INET6_ADDRSTRLEN);
+        if(i+1 < MIN(res, n)){
+            char* ipv6compat = inet_ntop(AF_INET6, &in6_addrs[++i].s6_addr, addr6_compat_str, INET6_ADDRSTRLEN);
+            addr = Py_BuildValue("{s:s, s:s}", "IPv6", ipv6addr ,"IP_compat", ipv6compat);
+        }
+        else addr = Py_BuildValue("{s:s}", "IPv6", ipv6addr);
+
+        if(PyList_Append(listAddr,addr) < 0)
+            return NULL;
+    }
+
+    return PyList_Size(listAddr) == 1 ? PyList_GetItem(listAddr, 0) : listAddr;
+}
+
 static PyMethodDef dns_methods[] = {
     /* configuration */
     {"update", (PyCFunction)dns_update, METH_VARARGS, dns_update_doc},
@@ -372,6 +526,11 @@ static PyMethodDef dns_methods[] = {
     {"freeaddrinfo", (PyCFunction)dns_freeaddrinfo, METH_VARARGS, dns_freeaddrinfo_doc},
     {"gai_strerror", (PyCFunction)dns_gai_strerror, METH_VARARGS, dns_gai_strerror_doc},
     {"getnameinfo", (PyCFunction)dns_getnameinfo, METH_VARARGS, dns_getnameinfo_doc},
+
+    /* mid level API: client queries */
+    {"lookup_a", (PyCFunction)dns_lookup_a, METH_VARARGS, dns_lookup_a_doc},
+    {"lookup_aaaa", (PyCFunction)dns_lookup_aaaa, METH_VARARGS, dns_lookup_aaaa_doc},
+    {"lookup_aaaa_compat", (PyCFunction)dns_lookup_aaaa_compat, METH_VARARGS, dns_lookup_aaaa_compat_doc},
 
     {NULL,NULL} /* sentinel */
 };
