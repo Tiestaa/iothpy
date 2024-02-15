@@ -1,3 +1,24 @@
+/* 
+ * This file is part of the iothpy library: python support for ioth.
+ * 
+ * Copyright (c) 2020-2024   Dario Mylonopoulos
+ *                           Lorenzo Liso
+ *                           Francesco Testa
+ * Virtualsquare team.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License 
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
 #include "iothpy_dns.h"
 #include "iothpy_stack.h"
 #include "iothpy_socket.h"
@@ -514,6 +535,10 @@ static PyObject* dns_lookup_aaaa_compat(dns_object* self, PyObject* args){
     return PyList_Size(listAddr) == 1 ? PyList_GetItem(listAddr, 0) : listAddr;
 }
 
+static PyObject(dns_object* self, PyObject* args){
+    
+}
+
 static PyMethodDef dns_methods[] = {
     /* configuration */
     {"update", (PyCFunction)dns_update, METH_VARARGS, dns_update_doc},
@@ -531,6 +556,9 @@ static PyMethodDef dns_methods[] = {
     {"lookup_a", (PyCFunction)dns_lookup_a, METH_VARARGS, dns_lookup_a_doc},
     {"lookup_aaaa", (PyCFunction)dns_lookup_aaaa, METH_VARARGS, dns_lookup_aaaa_doc},
     {"lookup_aaaa_compat", (PyCFunction)dns_lookup_aaaa_compat, METH_VARARGS, dns_lookup_aaaa_compat_doc},
+
+    /* low level API: client queries */
+    {"lookup_cb", (PyCFunction)dns_lookup_cb, METH_VARARGS, dns_lookup_cb_doc},
 
     {NULL,NULL} /* sentinel */
 };
