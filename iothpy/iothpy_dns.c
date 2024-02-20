@@ -44,6 +44,14 @@
 #define IS_PATH(str) (strchr(str, '/') != NULL)
 #define CHECK_BIT(var,pos) ((var) & (1<<(pos)))
 #define MIN(a,b) ((a) < (b) ? (a) : (b))
+#define GET_STRING_FLAG(flag, str) do {\
+    if(flag & O_RDONLY) str = "r";\
+    else if(flag & O_WRONLY) str = "w";\
+    else if(flag & O_RDWR) str = "r+";\
+    else if(flag & O_CREAT || flag & O_EXCL) str = "x";\
+    else if(flag & O_TRUNC) str = "w+";\
+    else if(flag & O_APPEND) str = "a";\
+} while (0)
 
 static void 
 dns_dealloc(dns_object* self){
@@ -535,8 +543,97 @@ static PyObject* dns_lookup_aaaa_compat(dns_object* self, PyObject* args){
     return PyList_Size(listAddr) == 1 ? PyList_GetItem(listAddr, 0) : listAddr;
 }
 
-static PyObject(dns_object* self, PyObject* args){
+/* need this to pass Py function to C callback function */
+static PyObject* Pycb_lookup = NULL;
+
+/* Python function should be defined in the same way */
+/*
+    Problemi:
+    1. Convertire FILE* f della struct iothdns_pkt vpkt in un file io di Python
+    2. Union c-like in python?
+*/
+static int cb_lookup(int section, struct iothdns_rr *rr, struct iothdns_pkt *vpkt, void *arg){
     
+    PyObject* args = Py_BuildValue("O", arg);
+    PyObject* py_rr = PyDict_New();
+    PyObject* py_pkt = PyDict_New();
+    PyObject* res = NULL;
+
+    PyDict_SetItemString(py_rr, "name", Py_BuildValue("s", rr->name));
+    PyDict_SetItemString(py_rr, "type", Py_BuildValue("I", rr->type));
+    PyDict_SetItemString(py_rr, "class", Py_BuildValue("I", rr->class));
+    PyDict_SetItemString(py_rr, "ttl", Py_BuildValue("I", rr->ttl));
+    PyDict_SetItemString(py_rr, "rdlength", Py_BuildValue("I", rr->rdlength));
+    
+    PyDict_SetItemString(py_pkt, "flags", Py_BuildValue("i", vpkt->flags));
+
+    /* Build file equivalent in Python */
+    int fd;
+    int flags;
+    char* pyFlag = NULL;
+    
+    if((fd=fileno(vpkt->f)) < 0){
+        return -1;
+    }
+
+    flags = fcntl(fd, F_GETFL);
+    GET_STRING_FLAG(flags, pyFlag);
+    if(pyFlag == NULL){
+        PyErr_SetString(PyExc_OSError, "invalid FILE flags");
+        return NULL;
+    }
+
+    PyObject* file = PyFile_FromFd(fd, vpkt->f->_tmpfname, pyFlag, NULL, NULL, NULL, NULL, NULL);
+
+        // chiedere cvhe tipo di flags sono
+    PyDict_SetItemString(py_pkt, "flags", Py_BuildValue("i", vpkt->flags));
+    PyDict_SetItemString(py_pkt, "f", file);
+
+    /* concludere parsing */
+
+    if(!PyCallable_Check(Pycb_lookup)){
+        PyErr_SetString(PyExc_OSError, "callback must be a function!");
+        return NULL;
+    }
+
+    (res = PyObject_CallFunctionObjArgs(Pycb_lookup))
+
+    if(!PyNumber_Check(res)){
+        PyErr_SetString(PyExc_OSError, "callback should return a number");
+        return NULL;
+    }
+
+    return *(int*)res;
+}
+
+static PyObject* dns_lookup_cb (dns_object* self, PyObject* args){
+    /* reset old function */
+    Pycb_lookup = NULL;
+
+    char* name = NULL;
+    int qtype = -1;
+    PyObject* lookup_cb = NULL;
+    PyObject* vargs = NULL;
+
+    if(self->dns == NULL){
+        PyErr_SetString(PyExc_Exception, "Uninitialized dns");
+        return NULL;
+    }
+
+    //TODO: check null name
+    if(!PyArg_ParseTuple(args, "ziOO", &name, &qtype, &lookup_cb, &vargs))
+        return NULL;
+
+    if(!PyCallable_Check(lookup_cb)){
+        PyErr_SetString(PyExc_SyntaxError, "invalid function!");
+        return NULL;
+    }
+
+    Pycb_lookup = lookup_cb_t;
+
+    int res = iothdns_lookup_cb(self->dns,name,qtype,(lookup_cb_t*)cb_lookup, (void*) args)
+
+    Py_RETURN_NONE;
 }
 
 static PyMethodDef dns_methods[] = {
@@ -559,6 +656,17 @@ static PyMethodDef dns_methods[] = {
 
     /* low level API: client queries */
     {"lookup_cb", (PyCFunction)dns_lookup_cb, METH_VARARGS, dns_lookup_cb_doc},
+    /*
+        TODO
+    {"lookup_cb_tcp", (PyCFunction)dns_lookup_tcp_cb, METH_VARARGS, dns_lookup_cb_tcp_doc},
+    */
+
+    /* low level API: server side */
+    /* 
+        TODO
+    {"udp_process_request", (PyCFunction)dns_udp_process_request, METH_VARARGS, dns_udp_process_request_doc},
+    {"tcp_process_request",(PyCFunction)tcp_udp_process_request, METH_VARARGS, tcp_udp_process_request_doc}
+    */
 
     {NULL,NULL} /* sentinel */
 };
